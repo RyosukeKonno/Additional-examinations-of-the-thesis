@@ -1,0 +1,264 @@
+!pip install dlib
+!pip install imutils
+!pip install opencv-python
+!pip install libopencv
+
+
+# coding:utf-8
+import dlib
+from imutils import face_utils
+import cv2
+from google.colab.patches import cv2_imshow
+from scipy.ndimage import gaussian_filter
+import skimage.transform  
+import matplotlib.pyplot as plt
+import numpy as np
+from PIL import Image
+import IPython
+
+
+#事前に画像を400×400に加工しておく
+#加工済みの画像を使用する
+
+#画像の呼び込み
+img = cv2.imread('/content/drive/MyDrive/知能システムプログラミング通論/ayase.jpg', cv2.IMREAD_UNCHANGED)
+
+
+#ここから顔検出
+#すっぴん側のランドマーク検出
+
+# 顔検出ツールの呼び出し
+face_detector = dlib.get_frontal_face_detector()
+
+# 顔のランドマーク検出ツールの呼び出し
+predictor_path = '/content/drive/MyDrive/知能システムプログラミング通論/shape_predictor_68_face_landmarks.dat'
+face_predictor = dlib.shape_predictor(predictor_path)
+
+# 処理高速化のためグレースケール化
+img_gry = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+
+# 顔のランドマーク検出
+# ※2番めの引数はupsampleの回数
+faces = face_detector(img_gry,1)
+
+# 検出した全顔に対して処理
+for face in faces:
+    # 顔のランドマーク検出
+    landmark = face_predictor(img_gry, face)
+    # 処理高速化のためランドマーク群をNumPy配列に変換(必須)
+    landmark = face_utils.shape_to_np(landmark)
+
+
+#メイク側のランドマーク検出
+imgMake=cv2.imread('/content/drive/MyDrive/知能システムプログラミング通論/green.jpg',cv2.IMREAD_UNCHANGED)
+cv2_imshow(img)
+cv2_imshow(imgMake)
+predictor_path = '/content/drive/MyDrive/知能システムプログラミング通論/shape_predictor_68_face_landmarks.dat'
+face_predictor2 = dlib.shape_predictor(predictor_path)
+
+img_gry2 = cv2.cvtColor(imgMake, cv2.COLOR_BGR2GRAY)
+faces = face_detector(img_gry2,1)
+
+for face in faces:
+    # 顔のランドマーク検出
+    landmark2 = face_predictor2(img_gry2, face)
+    # 処理高速化のためランドマーク群をNumPy配列に変換(必須)
+    landmark2 = face_utils.shape_to_np(landmark2)
+#print(landmark2)
+
+
+#ここからアフィン変換
+#アフィン変換の巻数
+def distort(file_path, roi_points, from_points, to_points):  
+    im = Image.open(file_path).convert('RGBA')  
+    from_points = np.concatenate((roi_points, from_points))  #すっぴんのランドマーク
+    to_points = np.concatenate((roi_points, to_points))  #化粧のランドマーク
+    affin = skimage.transform.PiecewiseAffineTransform()  #区分的アフィン変換
+    affin.estimate(to_points, from_points)  
+    im_array = skimage.transform.warp(im, affin)  
+    im_array = np.array(im_array * 255., dtype=np.uint8)  
+    if im_array.shape[2] == 1:  
+        im_array = im_array.reshape((im_array.shape[0],im_array.shape[1]))  
+    warped_im = Image.fromarray(im_array, 'RGBA')  #PIL.Imageが得られる
+    im.paste(warped_im, (0, 0), warped_im)  
+    return im 
+
+file_path = '/content/drive/MyDrive/知能システムプログラミング通論/green.jpg'  
+roi_points = [(0,0),(400,0),(400,400),(0,400)]  
+
+from_points = [
+              landmark2[0],landmark2[1],landmark2[2],landmark2[3],landmark2[4],landmark2[5],
+               landmark2[6],landmark2[7], landmark2[8],landmark2[9],landmark2[10],
+               landmark2[11],landmark2[12],landmark2[13],landmark2[14],landmark2[15],
+               landmark2[16],landmark2[27],landmark2[28],landmark2[29],landmark2[30],
+               landmark2[31] ,landmark2[32],landmark2[33],landmark2[34],landmark2[35],
+               landmark2[36] ,landmark2[37],landmark2[38],landmark2[39],landmark2[40],
+               landmark2[41],landmark2[42],landmark2[43],landmark2[44],landmark2[45],
+               landmark2[46],landmark2[47], landmark2[48],landmark2[49],landmark2[50],
+               landmark2[51],landmark2[52],landmark2[53],landmark2[54],landmark2[55],
+               landmark2[56],landmark2[57],landmark2[58],landmark2[59],landmark2[60],
+               landmark2[61],landmark2[62],landmark2[63],landmark2[64],landmark2[65],
+               landmark2[66],landmark2[67]] 
+
+to_points = [ 
+                landmark[0],landmark[1],landmark[2],landmark[3],landmark[4],landmark[5],
+               landmark[6],landmark[7], landmark[8],landmark[9],landmark[10],
+               landmark[11],landmark[12],landmark[13],landmark[14],landmark[15],
+               landmark[16],landmark[27],landmark[28],landmark[29],landmark[30],
+               landmark[31] ,landmark[32],landmark[33],landmark[34],landmark[35],
+                landmark[36] ,landmark[37],landmark[38],landmark[39],landmark[40],
+               landmark[41],landmark[42],landmark[43],landmark[44],landmark[45],
+               landmark[46],landmark[47], landmark[48],landmark[49],landmark[50],
+               landmark[51],landmark[52],landmark[53],landmark[54],landmark[55],
+               landmark[56],landmark[57],landmark[58],landmark[59],landmark[60],
+               landmark[61],landmark[62],landmark[63],landmark[64],landmark[65],
+               landmark[66],landmark[67]]  
+
+#print(from_points)
+#print(to_points)
+
+im = distort(file_path, roi_points, from_points, to_points)  
+im.save('/content/drive/MyDrive/知能システムプログラミング通論/affine.png')  #アフィン変換後の画像を保存
+
+img_for_filter=cv2.imread('/content/drive/MyDrive/知能システムプログラミング通論/affine.png')  
+lab=cv2.cvtColor(img_for_filter, cv2.COLOR_BGR2LAB)
+l,a,b=cv2.split(lab)
+'''
+cv2_imshow(l)
+cv2_imshow(a)
+cv2_imshow(b)
+'''
+#cv2.imwrite('/content/drive/MyDrive/知能システムプログラミング通論/reSize.jpg',im)
+#trim_img.save('./image_dir/img_'+str(count)+'_trim.jpg')
+#img.save('/content/drive/MyDrive/知能システムプログラミング通論/lena.jpg') 
+#
+
+# --------------------------------
+# 3.結果表示
+# --------------------------------
+#cv2.imread('sample', cv2.IMREAD_UNCHANGED)
+
+
+#cv2.waitKey(0)
+#cv2.destroyAllWindows()
+ 
+ # 結果を出力
+#cv2.imwrite("/content/drive/MyDrive/知能システムプログラミング通論/output.png", dst)
+#l=明るさ、輝度値 s=構造、structure
+'''
+    # ランドマーク描画
+displayNum = 0  # 描画用の数字
+
+'''
+'''
+for (i, (x, y)) in enumerate(landmark):
+   cv2.circle(img, (x, y), 1, (255, 255, 0), -1)
+   if displayNum < 60:
+     cv2.putText(img, str(displayNum), (x-3,y-3), cv2.FONT_HERSHEY_SIMPLEX, 0.2, (255,255,255), 1, cv2.LINE_AA)
+     displayNum += 1
+'''
+
+mask = np.zeros_like(img)
+background = np.zeros_like(img)
+cv2.fillPoly(mask, [np.concatenate([landmark[0:17],np.flipud(landmark[17:27])])], color=(255, 255, 255)) 
+cv2.fillPoly(mask, [landmark[36:42]], color=(0, 0, 0))
+cv2.fillPoly(mask, [landmark[42:48]], color=(0, 0, 0))  
+cv2.fillPoly(mask, [landmark[48:60]], color=(0, 0, 0)) 
+
+mask2 = np.zeros_like(img)
+cv2.fillPoly(mask2, [np.concatenate([landmark[0:17],np.flipud(landmark[17:27])])], color=(255, 255, 255)) 
+cv2.fillPoly(mask2, [landmark[36:42]], color=(0, 0, 0))
+cv2.fillPoly(mask2, [landmark[42:48]], color=(0, 0, 0)) 
+
+w = img.shape[1]
+h = img.shape[0]
+bi = cv2.bilateralFilter(img, 15, 20, 20)
+bilateraled = np.where(mask[:h, :w] == 0, img , bi)
+lab_input = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
+input_l,input_a,input_b = cv2.split(lab_input)
+lab_bilateraled = cv2.cvtColor(bilateraled, cv2.COLOR_BGR2LAB)
+bilateraled_l,bilateraled_a,bilateraled_b = cv2.split(lab_bilateraled)
+'''
+im_diff = input_l.astype(int)- bilateraled_l.astype(int)
+im_diff_abs = np.abs(im_diff)
+im_diff_abs_norm = im_diff_abs / im_diff_abs.max() * 255
+im_diff_abs_norm = im_diff_abs_norm.astype(int)
+#cv2_imshow(im_diff_abs_norm)
+cv2.imwrite('/content/drive/MyDrive/知能システムプログラミング通論/before.png',im_diff_abs_norm)  
+print("************")
+'''
+
+imMake=cv2.imread('/content/drive/MyDrive/知能システムプログラミング通論/affine.png')  
+#cv2_imshow(imMake)
+w = imMake.shape[1]
+h = imMake.shape[0]
+imMake_lab = cv2.cvtColor(imMake, cv2.COLOR_BGR2LAB)
+imMake_l,imMake_a,imMake_b = cv2.split(imMake_lab)
+bi_imMake = cv2.bilateralFilter(imMake, 15, 20, 20)
+warped = np.where(mask[:h, :w] == 0, imMake , bi_imMake)
+warped_lab = cv2.cvtColor(bi_imMake, cv2.COLOR_BGR2LAB)
+warped_l,warped_a,warped_b = cv2.split(warped_lab)
+im_diff = imMake.astype(int) - warped.astype(int)
+im_diff_l,im_diff_a,im_diff_b=cv2.split(im_diff)
+im_diff_abs = np.abs(im_diff)
+im_diff_abs_norm = im_diff_abs / im_diff_abs.max() * 255
+im_diff_abs_norm = im_diff_abs_norm.astype(int)
+#cv2_imshow(im_diff_abs_norm)
+cv2.imwrite('/content/drive/MyDrive/知能システムプログラミング通論/kate.png',im_diff_abs_norm)  
+
+"""
+warped = np.where(mask[:h, :w] == 0, background , bi_imMake)
+gaussian = cv2.GaussianBlur(warped, (9, 9),5)
+blended= cv2.addWeighted(img, 1, gaussian, 0.1, 1)
+"""
+#blended = np.where(mask2[:h, :w] == 0, img , blended)
+#blended_lab = cv2.cvtColor(blended, cv2.COLOR_BGR2LAB)
+#blended_l,blended_a,blended_b = cv2.split(blended_lab)
+#cv2_imshow(blended)
+
+
+result_l = im_diff_l + bilateraled_l
+
+"""
+diff_ary = np.array(result_l , np.uint8)
+gaussian = cv2.GaussianBlur(diff_ary , (5, 5),9)
+result_l = gaussian
+"""
+
+v = 0.2
+result_a = (bilateraled_a*v)+((1-v)*warped_a)
+result_b = (bilateraled_b*v)+((1-v)*warped_b)
+'''
+cv2_imshow(result_l)
+cv2_imshow(result_a)
+cv2_imshow(result_b)
+'''
+result = cv2.merge([result_l.astype(int),result_a.astype(int),result_b.astype(int)])
+"""
+lab=cv2.merge([result_l,result_a.astype(int),result_b.astype(int)])
+cv2_imshow(lab)
+print(type(lab))
+print(result_l,result_a.astype(int),result_b.astype(int))
+print(lab)
+"""
+
+img_Lab = np.array(result, np.uint8)
+img_BGR = cv2.cvtColor(img_Lab, cv2.COLOR_Lab2BGR)
+show = np.where(mask2[:h, :w] == 0, img,img_BGR)
+#gaussian = cv2.GaussianBlur(show, (3, 3),0)
+cv2_imshow(show)
+#end = color.lab2rgb(result)
+cv2.imwrite('/content/drive/MyDrive/知能システムプログラミング通論/result_c.png',show)  
+
+#cv2.imwrite('/content/drive/MyDrive/知能システムプログラミング通論/lab.png',lab)  
+
+#cv2_imshow(a)
+#cv2.polylines(img, [np.concatenate([landmark[0:17],np.flipud(landmark[17:27])])], True, (255, 255, 255), thickness=2)
+# --------------------------------
+# 3.結果表示
+# --------------------------------
+#cv2.imread('sample', cv2.IMREAD_UNCHANGED)
+#cv2_imshow(output)
+#cv2.waitKey(0)
+#cv2.destroyAllWindows()
